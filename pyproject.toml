@@ -12,12 +12,13 @@ name = "newtype"
 version = "0.0.0"  # Do not change, let poetry-dynamic-versioning handle it.
 homepage = "https://github.com/jymchng/python-newtype"
 repository = "https://github.com/jymchng/python-newtype"
-license = "Apache-2.0"
-description = ""
+license = "MIT"
+description = "Extending your Python types using the `NewType` pattern easily!"
 authors = ["Jim Chng"]
 readme = "README.md"
 packages = [{include = "newtype"}]
 include = ["newtype/*.so", "newtype/*.pyd"]  # Compiled extensions
+keywords = ["newtype newtypes"]
 
 [tool.poetry.build]
 script = 'build.py'

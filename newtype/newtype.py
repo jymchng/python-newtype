@@ -1,14 +1,7 @@
 """Module for creation of `NewType` in Python, currently, only works for `str` and `int`."""
 
 from typing import TYPE_CHECKING
-from weakref import WeakKeyDictionary, WeakValueDictionary, ref
-
-HAS_PANDAS = False
-try:
-    import pandas as pd
-    HAS_PANDAS = True
-except ImportError:
-    pass
+from weakref import WeakKeyDictionary, ref
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Type, TypeVar, Union

@@ -114,7 +114,7 @@ def test_mnemonics_pydantic():
         Account(mnemonics="hello bye hey")
 ```
 
-1. Normal usage
+2. Normal usage
 
 ```python
 import pytest
@@ -198,3 +198,9 @@ class ZkSyncAddress(EthereumAddress):
     ...
 
 ```
+
+# Contributing
+Contributions are welcome! If you have suggestions, bug reports, or feature requests, please open an issue on the GitHub repository.
+
+# License
+This project is licensed under the MIT License.
