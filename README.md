@@ -1,10 +1,15 @@
-# `newtype`
+<div align="center"><h1>newtype</h1></div>
 
+<div align="center">
 
-[![License](https://img.shields.io/pypi/l/python-newtype.svg)](https://github.com/jymchng/python-newtype/blob/main/LICENSE)
+![](assets/python-newtype-logo.png)
 
+</div>
 
-`newtype` is a Python package that simplifies the creation of custom types using the `newtype` pattern. This pattern allows you to extend and customize existing types, creating tailored data structures with specialized behaviors.
+Simplifies the creation of custom types using the `newtype` pattern. This pattern allows you to extend and customize existing types, creating tailored data structures with specialized behaviors.
+
+[![License](https://img.shields.io/pypi/l/python-newtype.svg)](https://github.com/jymchng/python-newtype/blob/main/LICENSE) [![Python Version](https://img.shields.io/badge/%3E=python-3.8-blue.svg)](https://img.shields.io/badge/%3E=python-3.8-blue.svg)
+
 
 ## Features
 
@@ -93,7 +98,7 @@ class Mnemonics:
 
 1. Use with `pydantic`
    
-The example demonstrates the integration of Mnemonics with the Pydantic package, a data validation and settings management library. The code defines an Account Pydantic model with a field named mnemonics of type Mnemonics[2], indicating that the mnemonic phrase should have a length of two words. The model is then used to validate mnemonic phrases.
+The example demonstrates the integration of Mnemonics with the Pydantic package. The code defines an Account Pydantic model with a field named mnemonics of type Mnemonics[2], indicating that the mnemonic phrase should have a length of two words. The model is then used to validate mnemonic phrases.
 
 ```python
 from pydantic import BaseModel
@@ -109,7 +114,7 @@ def test_mnemonics_pydantic():
         Account(mnemonics="hello bye hey")
 ```
 
-2. Normal usage
+1. Normal usage
 
 ```python
 import pytest
@@ -130,4 +135,66 @@ def test_mnemonics():
         mnemonics_one.replace("bye", "hey you how")
     assert type(
         mnemonics_one).__name__ == Mnemonics.__name__, f"type(mnemonics_one)={type(mnemonics_one)}"
+```
+
+### Blockchain Addresses
+
+A fuller example of using `NewType` for creation of new type of in-built `str` that preserves the invariance of the type.
+
+``` python
+import re
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+import web3
+
+from newtype import NewType
+
+if TYPE_CHECKING:
+    from typing import Type
+
+
+class BlockchainAddress(NewType(str), ABC):
+
+    @classmethod
+    @abstractmethod
+    def __newtype__(cls, val: "str") -> "Type[BlockchainAddress]":
+        raise NotImplementedError
+
+    @staticmethod
+    @abstractmethod
+    def _validate_address(val: " str") -> "bool":
+        raise NotImplementedError
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.__newtype__
+
+
+class EthereumAddress(BlockchainAddress):
+
+    @classmethod
+    def __newtype__(cls, val: "str") -> "type[EthereumAddress]":
+        assert cls._validate_address(
+            val), f"val = {val} does not match the regex of `Address`"
+        return web3.Web3.to_checksum_address(val)
+
+    def __init__(self, _val: "str"):
+        self._is_checksum = True
+
+    @property
+    def is_checksum(self):
+        return self._is_checksum
+
+    @staticmethod
+    def _validate_address(address):
+        # Ethereum addresses are 40 hexadecimal characters prefixed with '0x'
+        if not re.match(r"^0x[0-9a-fA-F]{40}$", address):
+            return False
+        return True
+
+
+class ZkSyncAddress(EthereumAddress):
+    ...
+
 ```
