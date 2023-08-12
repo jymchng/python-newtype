@@ -26,6 +26,11 @@ You can install the `newtype` package using pip:
 python -m pip install -U git+https://git@github.com/jymchng/python-newtype
 ```
 
+Or using poetry:
+```bash
+poetry add git+https://git@github.com/jymchng/python-newtype
+```
+
 # Usage
 
 Import the NewType class from the package.
