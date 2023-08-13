@@ -26,8 +26,6 @@ if TYPE_CHECKING:
     VarArgs: TypeAlias = Tuple[Any, ...]
     KwArgs: TypeAlias = Dict[str, Any]
     VarArgsMayIncludeSelf: TypeAlias = Tuple[Union[Self, Arg], ...]
-    AnyCallable: TypeAlias = Callable[[VarArgs, KwArgs], Any]
-    SetAttrFunc: TypeAlias = Callable[[Self, str], None]
     AnyObjectMethod: TypeAlias = Callable[[Self, VarArgs, KwArgs], Optional[Any]]
     AnyObjectMethodMightRaise: TypeAlias = Callable[[
     Self, VarArgs, KwArgs], Union[Any, NoReturn, None]]
