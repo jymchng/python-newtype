@@ -1,30 +1,49 @@
-"""Module for creation of `NewType` in Python, currently, only works for `str` and `int`."""
-
 from typing import TYPE_CHECKING
-from weakref import WeakKeyDictionary, ref
+from weakref import WeakKeyDictionary, WeakValueDictionary, ref
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Type, TypeVar, Union
+    from typing import (
+        Any,
+        Callable,
+        ClassVar,
+        Dict,
+        NoReturn,
+        Optional,
+        Tuple,
+        Type,
+        TypeAlias,
+        Union,
+        cast,
+    )
+    from typing import NewType as NewType_fn
     from weakref import ReferenceType
 
-    Self = TypeVar("Self")
-    Arg = TypeVar("Arg")
-    VarArgs, VarArgsMayIncludeSelf, KwArgs = Tuple[Arg,
-                                                   ...], Tuple[Union[Self, Arg], ...], Dict[Arg, Any]
-    AnyCallable = Callable[[VarArgs, KwArgs], Any]
-    SetAttrFunc = Callable[[Self, str], None]
-    AnyObjectMethod = Callable[[Self, VarArgs, KwArgs], Optional[Any]]
-    AnyObjectMethodMightRaise = Callable[[
-        Self, VarArgs, KwArgs], Union[Any, NoReturn, None]]
-    DeletedObjectMethod = Callable[[Self, VarArgs, KwArgs], NoReturn]
-    NewTypeClassMethod = Callable[[Type, Arg, VarArgs], Self]
+    MetaType: TypeAlias = type
+    SuperType = NewType_fn("SuperType", MetaType)
+    NewType = NewType_fn("NewType", SuperType)
+    Self: TypeAlias = Any
+    Arg: TypeAlias = Any
+    VarArgs: TypeAlias = Tuple[Any, ...]
+    KwArgs: TypeAlias = Dict[str, Any]
+    VarArgsMayIncludeSelf: TypeAlias = Tuple[Union[Self, Arg], ...]
+    AnyCallable: TypeAlias = Callable[[VarArgs, KwArgs], Any]
+    SetAttrFunc: TypeAlias = Callable[[Self, str], None]
+    AnyObjectMethod: TypeAlias = Callable[[Self, VarArgs, KwArgs], Optional[Any]]
+    AnyObjectMethodMightRaise: TypeAlias = Callable[[
+    Self, VarArgs, KwArgs], Union[Any, NoReturn, None]]
+    DeletedObjectMethod: TypeAlias = Callable[[Self, VarArgs, KwArgs], NoReturn]
+    NewTypeClassMethod: TypeAlias = Union[Callable[[Type[Self], SuperType, VarArgs, KwArgs], NoReturn], Callable[[Type[Self], SuperType, VarArgs, KwArgs], SuperType]]
 
-    class NewTypeType:
-        __newtype__: NewTypeClassMethod
-
-    class NewTypeConduitType:
+    class ConduitType:
         __supertype__: ReferenceType[Type[Any]]
-        __thisclass__: ReferenceType[Type[Any]]
+        __conduittype__: ReferenceType[Type[Any]]
+
+    class NewType:
+        __newtype__: NewTypeClassMethod
+        __supertype__: ClassVar[ReferenceType[Type[Any]]]
+        __conduittype__: ClassVar[ReferenceType[Type[Any]]]
+        _cached_conduittypes: ClassVar[Dict[ReferenceType[Type[Any]], ConduitType]]
+        _cached_newtypes: ClassVar[Dict[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], NewType]]
 
 
 def copy_slots_dict(new: "object", old: "object") -> "Tuple[object, object]":
@@ -37,13 +56,13 @@ def is_meth_dunder(meth_name: "str") -> "bool":
     return meth_name.startswith("__") and meth_name.endswith("__")
 
 
-def wrap_meths(cls: "NewTypeType", supertype: "Type[Any]"):
-    mro: "Tuple[Type, ...]" = cls.__mro__[:-1]
+def wrap_meths(cls: "NewType", supertype: "SuperType"):
+    mro: "Tuple[Type[Any], ...]" = cls.__mro__[:-1]
 
     def outer(meth: "AnyObjectMethod") -> "AnyObjectMethod":
         def inner(
             *args: "VarArgsMayIncludeSelf",
-                **kwargs: "KwArgs") -> "AnyObjectMethodMightRaise":
+                **kwargs: "KwArgs") -> "Union[AnyObjectMethodMightRaise, Any]":
             v = meth(*args, **kwargs)
             if isinstance(v, bool):
                 return v
@@ -70,12 +89,10 @@ def get_meths_to_wrap(meth_name: "str") -> "bool":
     return meth_name not in __EXCLUDED_DUNDERS__
 
 
-class NewType:
+class ConduitType:  # noqa: F811
 
-    _cached_conduittypes: "Dict[ReferenceType[Type[Any]], NewTypeConduitType]" = WeakKeyDictionary(
-    )
-    _cached_newtypes: "Dict[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], NewTypeType]" = {
-    }
+    _cached_conduittypes: "WeakKeyDictionary[ReferenceType[Type[Any]], ConduitType]" = WeakKeyDictionary()
+    _cached_newtypes: "WeakValueDictionary[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], NewType]" = WeakValueDictionary()
 
     @staticmethod
     def filter_onetype_from_bases(
@@ -83,42 +100,42 @@ class NewType:
             to_filter: "Type[Any]") -> "Tuple[Type[Any], ...]":
         return tuple(filter(lambda b: b is not to_filter, bases))
 
-    def __new__(cls, supertype: "Type[Any]") -> "NewTypeType":
+    def __new__(cls: "Type[ConduitType]", supertype: "SuperType") -> "NewType":
         if supertype in cls._cached_conduittypes:
             return cls._cached_conduittypes[supertype]
-        conduittype: "NewTypeConduitType" = type(
+        conduittype = type(
             cls.__name__,
             (supertype, *cls.__bases__[:-1]),
             dict(cls.__dict__))
         conduittype.__supertype__ = ref(supertype)
         conduittype.__new__ = cls.__newtype_new__
-        conduittype.__thisclass__ = ref(conduittype)
+        conduittype.__conduittype__ = ref(conduittype)
         cls._cached_conduittypes[supertype] = conduittype
         return cls._cached_conduittypes[supertype]
 
-    def __newtype_new__(cls: "Union[NewTypeType, NewTypeConduitType, NewType]", val: "Any", *args: "VarArgs", **kwargs: "KwArgs") -> "NewTypeType":   # noqa: N805
-        newtype_attrs = dict(cls.__dict__)
+    def __newtype_new__(cls: "NewType", val: "Any", *args: "VarArgs", **kwargs: "KwArgs") -> "Any": # noqa: N805
         supertype = cls.__supertype__()
-        supertype_attrs = dict(supertype.__dict__)
-        supertype_attrs = {k: wrap_meths(cls, supertype)(v)
-                           for k, v in supertype_attrs.items()
-                           if callable(v)
-                           and get_meths_to_wrap(k)}
-        newtype_attrs.update(supertype_attrs)
-        supertype_attrs = {
-            k: v for k,
-            v in supertype_attrs.items() if not callable(v)}
-        newtype_attrs.update(supertype_attrs)
-        newtype_attrs.update({"__dict__": {}, "__supertype__": ref(
-            supertype), "_cached_newtypes": cls._cached_newtypes})
-        newtype_bases = (
-            *cls.filter_onetype_from_bases(
-                cls.__bases__,
-                cls.__thisclass__()),
-            supertype)  # supertype must be last
         if cls.__name__ in cls._cached_newtypes:
             cls = cls._cached_newtypes[cls.__name__]
         else:
+            newtype_attrs = dict(cls.__dict__)
+            supertype_attrs = dict(supertype.__dict__)
+            supertype_attrs = {k: wrap_meths(cls, supertype)(v)
+                            for k, v in supertype_attrs.items()
+                            if callable(v)
+                            and get_meths_to_wrap(k)}
+            newtype_attrs.update(supertype_attrs)
+            supertype_attrs = {
+                k: v for k,
+                v in supertype_attrs.items() if not callable(v)}
+            newtype_attrs.update(supertype_attrs)
+            newtype_attrs.update({"__dict__": {}, "__supertype__": ref(
+                supertype), "_cached_newtypes": cls._cached_newtypes})
+            newtype_bases = (
+                *cls.filter_onetype_from_bases(
+                    cls.__bases__,
+                    cls.__conduittype__()),
+                supertype)  # supertype must be last
             cls = type(cls.__name__, newtype_bases, newtype_attrs)
             cls._cached_newtypes[cls.__name__] = cls
         if supertype.__new__ is object.__new__:
@@ -133,3 +150,5 @@ class NewType:
         elif supertype in (list, set, dict, tuple):
             supertype.__init__(inst, val)
         return inst
+
+NewType = ConduitType

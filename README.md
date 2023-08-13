@@ -8,7 +8,7 @@
 
 Simplifies the creation of custom types using the `newtype` pattern. This pattern allows you to extend and customize existing types, creating tailored data structures with specialized behaviors.
 
-[![License](https://img.shields.io/pypi/l/python-newtype.svg)](https://github.com/jymchng/python-newtype/blob/main/LICENSE) [![Python Version](https://img.shields.io/badge/%3E=python-3.8-blue.svg)](https://img.shields.io/badge/%3E=python-3.8-blue.svg)
+[![Python Version](https://img.shields.io/badge/%3E=python-3.8-blue.svg)](https://img.shields.io/badge/%3E=python-3.8-blue.svg)
 
 
 ## Features
@@ -34,13 +34,59 @@ poetry add git+https://git@github.com/jymchng/python-newtype
 # Usage
 
 Import the NewType class from the package.
+
+Example:
 ```python
 from newtype import NewType
 ```
 
 Create a new type by inheriting from NewType and specifying the desired base type.
+In this case, `int` is the `SuperType` and `FourDigits` is the `NewType`.
 
-Customize the new type by extending and modifying its behavior as needed.
+Example:
+
+```python
+class FourDigits(NewType(int)):
+    ...
+```
+
+Validate the new type by defining the dunder classmethod `__newtype__`.
+
+`__newtype__` has this signature:
+
+`Union[Callable[[Type[Self], SuperType, VarArgs, KwArgs], NoReturn], Callable[[Type[Self], SuperType, VarArgs, KwArgs], SuperType]]`.
+
+`__newtype__`'s first parameter is the class on which `__newtype__` is a method of. The second parameter is a value of the `SuperType`, in the `FourDigits` example, the second parameter must be a value of `int`. The `VarArgs` and `KwArgs` denote the variadic positional and keyword arguments that can be passed in. The dunder method should validate the input of type `SuperType` and raise `Exception` if the input fails the validation.
+
+Example:
+```python
+class FourDigits(NewType(int)):
+    
+    @classmethod
+    def __newtype__(cls, value: "int") -> "int":
+        assert 1000 <= value <= 9999, f"{value} is not a four digits integer"
+        return value
+```
+
+Customize the new type by defining the dunder `__init__` method.
+The signature of the `__init__` method must be identical to that of the `__newtype__` classmethod.
+`newtype` will call the defined `__init__` method automatically after calling the `__newtype__` classmethod.
+
+Example:
+
+```python
+from datetime import datetime
+
+class FourDigits(NewType(int)):
+    
+    @classmethod
+    def __newtype__(cls, value: "int") -> "int":
+        assert 1000 <= value <= 9999, f"{value} is not a four digits integer"
+        return value
+
+    def __init__(self, value: "int"):
+        self.datetime_issued = datetime.now()
+```
 
 Utilize the new type in your code to encapsulate specific data structures and logic.
 
