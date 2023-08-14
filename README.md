@@ -1,4 +1,4 @@
-<div align="center"><h1>newtype</h1></div>
+<div align="center "style="font-size: 24px; font-family: Helvetica;"><h1>newtype</h1></div>
 
 <div align="center">
 
@@ -6,6 +6,7 @@
 
 </div>
 
+<div style="font-family: Helvetica; font-size: 15px">
 Simplifies the creation of custom types using the `newtype` pattern. This pattern allows you to extend and customize existing types, creating tailored data structures with specialized behaviors.
 
 [![Python Version](https://img.shields.io/badge/%3E=python-3.8-blue.svg)](https://img.shields.io/badge/%3E=python-3.8-blue.svg)
@@ -89,6 +90,12 @@ class FourDigits(NewType(int)):
 ```
 
 Utilize the new type in your code to encapsulate specific data structures and logic.
+
+<div align="center "style="font-size: 24px; color: red; font-family: Helvetica;">===== WARNING! =====
+<p>
+Do not use this library to make new types of complex types<p> (e.g. pandas's DataFrame)<p>
+===================
+</div>
 
 ## Examples
 
@@ -255,3 +262,4 @@ Contributions are welcome! If you have suggestions, bug reports, or feature requ
 
 # License
 This project is licensed under the MIT License.
+</div>

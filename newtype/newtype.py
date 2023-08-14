@@ -1,5 +1,9 @@
+import logging
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary, WeakValueDictionary, ref
+
+logger = logging.getLogger("newtype")
+
 
 if TYPE_CHECKING:
     from typing import (
@@ -42,6 +46,39 @@ if TYPE_CHECKING:
         __conduittype__: ClassVar[ReferenceType[Type[Any]]]
         _cached_conduittypes: ClassVar[Dict[ReferenceType[Type[Any]], ConduitType]]
         _cached_newtypes: ClassVar[Dict[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], NewType]]
+        
+
+BUILTIN_TYPES = (
+    int,
+    float,
+    complex,
+    str,
+    bool,
+    bytes,
+    bytearray,
+    memoryview,
+    list,
+    tuple,
+    set,
+    frozenset,
+    dict,
+    type(None),
+    type,
+    object,
+)
+
+WARNING_MSG = (
+    "Creating newtypes of supertypes that are not in Python's built-in types "
+    "can lead to hard-to-debug behaviors for the newtypes. It's recommended to stick to "
+    "creating newtypes based on simple built-in types such as int, float, str, etc."
+    )
+
+class NewTypeWarning(UserWarning):
+    pass
+
+def warn_about_newtypes():
+    import warnings
+    warnings.warn(WARNING_MSG, NewTypeWarning)  # noqa: B028
 
 
 def copy_slots_dict(new: "object", old: "object") -> "Tuple[object, object]":
@@ -54,21 +91,19 @@ def is_meth_dunder(meth_name: "str") -> "bool":
     return meth_name.startswith("__") and meth_name.endswith("__")
 
 
-def wrap_meths(cls: "NewType", supertype: "SuperType"):
-    mro: "Tuple[Type[Any], ...]" = cls.__mro__[:-1]
-
+def wrap_meths(cls: "Type[NewType]", supertype: "Type[SuperType]"):
     def outer(meth: "AnyObjectMethod") -> "AnyObjectMethod":
         def inner(
-            *args: "VarArgsMayIncludeSelf",
-                **kwargs: "KwArgs") -> "Union[AnyObjectMethodMightRaise, Any]":
-            v = meth(*args, **kwargs)
-            if isinstance(v, bool):
+                *args: "VarArgsMayIncludeSelf",
+                    **kwargs: "KwArgs") -> "Union[AnyObjectMethodMightRaise, Any]":
+                v = meth(*args, **kwargs)
+                if isinstance(v, bool):
+                    return v
+                if (v is None and isinstance(args[0], supertype)) or (meth.__name__ == "__setattr__"):
+                    cls.__newtype__(args[0])  # AnyObjectMethodMightRaise
+                if type(v) == supertype:
+                    return cls(v)
                 return v
-            if v is None and isinstance(args[0], supertype):
-                cls.__newtype__(args[0])  # AnyObjectMethodMightRaise
-            if isinstance(v, mro):
-                return cls(v)
-            return v
         if not hasattr(cls, "__setattr__"):
             cls.__setattr__ = inner
         return inner
@@ -98,7 +133,9 @@ class ConduitType:  # noqa: F811
             to_filter: "Type[Any]") -> "Tuple[Type[Any], ...]":
         return tuple(filter(lambda b: b is not to_filter, bases))
 
-    def __new__(cls: "Type[ConduitType]", supertype: "SuperType") -> "NewType":
+    def __new__(cls: "Type[ConduitType]", supertype: "Type[SuperType]") -> "Type[NewType]":
+        if supertype not in BUILTIN_TYPES:
+            warn_about_newtypes()
         if supertype in cls._cached_conduittypes:
             return cls._cached_conduittypes[supertype]
         conduittype = type(
@@ -111,7 +148,7 @@ class ConduitType:  # noqa: F811
         cls._cached_conduittypes[supertype] = conduittype
         return cls._cached_conduittypes[supertype]
 
-    def __newtype_new__(cls: "NewType", val: "Any", *args: "VarArgs", **kwargs: "KwArgs") -> "Any": # noqa: N805
+    def __newtype_new__(cls: "Type[NewType]", val: "Any", *args: "VarArgs", **kwargs: "KwArgs") -> "Any": # noqa: N805
         supertype = cls.__supertype__()
         if cls.__name__ in cls._cached_newtypes:
             cls = cls._cached_newtypes[cls.__name__]
@@ -141,7 +178,7 @@ class ConduitType:  # noqa: F811
             old_inst = cls.__newtype__(val, *args, **kwargs)
             inst, _ = copy_slots_dict(new=inst, old=old_inst)
         else:
-            inst: "supertype" = supertype.__new__(
+            inst = supertype.__new__(
                 cls, cls.__newtype__(val, *args, **kwargs))
         if hasattr(cls, "__init__") and cls.__init__ != supertype.__init__:
             inst.__init__(val, *args, **kwargs)
