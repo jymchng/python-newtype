@@ -18,36 +18,24 @@ if TYPE_CHECKING:
         TypeAlias,
         Union,
         cast,
+        Protocol,
     )
-    from typing import NewType as NewType_fn
     from weakref import ReferenceType
+    from typing_extensions import Self, ParamSpecArgs, ParamSpecKwargs
 
-    MetaType: TypeAlias = type
-    SuperType = NewType_fn("SuperType", MetaType)
-    Self: TypeAlias = Any
-    Arg: TypeAlias = Any
-    VarArgs: TypeAlias = Tuple[Any, ...]
-    KwArgs: TypeAlias = Dict[str, Any]
-    VarArgsMayIncludeSelf: TypeAlias = Tuple[Union[Self, Arg], ...]
-    AnyObjectMethod: TypeAlias = Callable[[Self, Optional[VarArgs], Optional[KwArgs]], Any]
-    AnyStaticMethod: TypeAlias = Callable[[Optional[VarArgs], Optional[KwArgs]], Any]
-    AnyClassMethod: TypeAlias = Callable[[Type[Self], Optional[VarArgs], Optional[KwArgs]], Any]
-    AnyMethod: TypeAlias = Union[AnyClassMethod, AnyStaticMethod, AnyObjectMethod]
-    AnyObjectMethodMightRaise: TypeAlias = Callable[[
-    Self, VarArgs, KwArgs], Union[Any, NoReturn, None]]
-    DeletedObjectMethod: TypeAlias = Callable[[Self, VarArgs, KwArgs], NoReturn]
-    NewTypeClassMethod: TypeAlias = Union[Callable[[Type[Self], SuperType], NoReturn], Callable[[Type[Self], SuperType], SuperType]]
+    AnyCallable: TypeAlias = Callable[..., Any]
+    SuperType = Any
 
-    class ConduitType:
-        __supertype__: ReferenceType[Type[Any]]
-        __conduittype__: ReferenceType[Type[Any]]
+    class ConduitType(Protocol):
+        __supertype__: ClassVar[ReferenceType[SuperType]]
+        __conduittype__: ClassVar[ReferenceType["ConduitType"]]
 
-    class NewType(TypeAlias):
-        __newtype__: NewTypeClassMethod
-        __supertype__: ClassVar[ReferenceType[Type[Any]]]
-        __conduittype__: ClassVar[ReferenceType[Type[Any]]]
-        _cached_conduittypes: ClassVar[Dict[ReferenceType[Type[Any]], ConduitType]]
-        _cached_newtypes: ClassVar[Dict[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], NewType]]
+    class NewType(Protocol):
+        __newtype__: AnyCallable
+        __supertype__: ClassVar[ReferenceType[SuperType]]
+        __conduittype__: ClassVar[ReferenceType[ConduitType]]
+        _cached_conduittypes: ClassVar[Dict[ReferenceType[Type[Any]], Type[ConduitType]]]
+        _cached_newtypes: ClassVar[Dict[Tuple[str, Tuple[Type[Any], ...], Dict[str, Any]], "Type[NewType]"]]
         
 
 BUILTIN_TYPES = (
@@ -94,10 +82,10 @@ def is_meth_dunder(meth_name: "str") -> "bool":
 
 
 def wrap_meths(cls: "Type[NewType]", supertype: "Type[SuperType]"):
-    def outer(meth: "AnyMethod") -> "AnyObjectMethod":
+    def outer(meth: "AnyCallable") -> "AnyCallable":
         def inner(
-                *args: "Optional[VarArgsMayIncludeSelf]",
-                    **kwargs: "Optional[KwArgs]") -> "Union[AnyObjectMethodMightRaise, Any]":
+                *args: "ParamSpecArgs",
+                    **kwargs: "ParamSpecKwargs") -> "Union[AnyCallable, Any]":
                 v = meth(*args, **kwargs)
                 if isinstance(v, bool):
                     return v
@@ -107,13 +95,14 @@ def wrap_meths(cls: "Type[NewType]", supertype: "Type[SuperType]"):
                     return cls(v)
                 return v
         if not hasattr(cls, "__setattr__"):
+            inner = cast("Callable[[object, str, Any], None]", inner)
             cls.__setattr__ = inner
         return inner
     return outer
 
 
-def delete_impl(msg: "str" = "") -> "DeletedObjectMethod":
-    def delete_impl_inner(*_: "VarArgs", **__: "KwArgs") -> "NoReturn":
+def delete_impl(msg: "str" = "") -> "AnyCallable":
+    def delete_impl_inner(*_: "ParamSpecArgs", **__: "ParamSpecKwargs") -> "NoReturn":
         raise NotImplementedError(
             f"This implementation is not implemented or deleted{', ' + msg if msg else ''}")
     return delete_impl_inner
@@ -150,7 +139,7 @@ class ConduitType:  # noqa: F811
         cls._cached_conduittypes[supertype] = conduittype
         return cls._cached_conduittypes[supertype]
 
-    def __newtype_new__(cls: "Type[NewType]", val: "Any", *args: "VarArgs", **kwargs: "KwArgs") -> "Any": # noqa: N805
+    def __newtype_new__(cls: "Type[NewType]", val: "Any", *args: "ParamSpecArgs", **kwargs: "ParamSpecKwargs") -> "NewType": # noqa: N805
         supertype = cast("Type[SuperType]", cls.__supertype__())
         if cls.__name__ in cls._cached_newtypes:
             cls = cls._cached_newtypes[cls.__name__]

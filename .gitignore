@@ -10,6 +10,7 @@ bootstrap
 docs/bin
 docs/source/readme.rst
 docs/source/assets
+.ruff_cache
 
 
 ##---------------------------------------------------
